@@ -9,6 +9,7 @@ const medicineRoutes = require('./src/routes/medicineRoutes');
 const inventoryRoutes = require('./src/routes/inventoryRoutes');
 const reservationRoutes = require('./src/routes/reservationRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
+const chatRoutes = require('./src/routes/chatRoutes');
 
 const app = express();
 app.use(cors());
@@ -24,6 +25,7 @@ app.use('/api/medicines', medicineRoutes);
 app.use('/api/inventory', inventoryRoutes);
 app.use('/api/reservations', reservationRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/chat', chatRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
