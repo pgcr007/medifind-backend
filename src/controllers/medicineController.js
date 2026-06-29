@@ -25,4 +25,25 @@ async function createMedicine(req, res) {
   }
 }
 
-module.exports = { searchMedicines, createMedicine };
+async function getAlternatives(req, res) {
+  try {
+    const medicine = await Medicine.findById(req.params.id);
+    if (!medicine) return res.status(404).json({ error: 'Medicine not found' });
+
+    if (!medicine.genericName) {
+      return res.json({ alternatives: [] });
+    }
+
+    const alternatives = await Medicine.find({
+      genericName: medicine.genericName,
+      _id: { $ne: medicine._id }
+    }).limit(5);
+
+    res.json({ alternatives });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+
+module.exports = { searchMedicines, createMedicine, getAlternatives };
