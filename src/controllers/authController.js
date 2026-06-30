@@ -62,4 +62,14 @@ async function login(req, res) {
   }
 }
 
-module.exports = { register, login };
+async function updateFcmToken(req, res) {
+  try {
+    const { fcmToken } = req.body;
+    await User.findByIdAndUpdate(req.user.id, { fcmToken });
+    res.json({ message: 'FCM token updated' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+module.exports = { register, login, updateFcmToken };

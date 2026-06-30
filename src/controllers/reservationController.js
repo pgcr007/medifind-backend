@@ -1,5 +1,6 @@
 const Reservation = require('../models/Reservation');
 const Inventory = require('../models/Inventory');
+const { markRefilled } = require('./reminderController');
 
 async function createReservation(req, res) {
   try {
@@ -20,6 +21,9 @@ async function createReservation(req, res) {
     // Decrement stock to reflect the reservation (simple MVP approach)
     inventoryEntry.stockQty -= 1;
     await inventoryEntry.save();
+
+    // Reset refill clock if user has an active reminder for this medicine
+    await markRefilled(req.user.id, medicineId);
 
     res.status(201).json(reservation);
   } catch (err) {

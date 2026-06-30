@@ -10,12 +10,15 @@ const inventoryRoutes = require('./src/routes/inventoryRoutes');
 const reservationRoutes = require('./src/routes/reservationRoutes');
 const adminRoutes = require('./src/routes/adminRoutes');
 const chatRoutes = require('./src/routes/chatRoutes');
+const reminderRoutes = require('./src/routes/reminderRoutes');
+const { startRefillCheckJob } = require('./src/jobs/refillCheckJob');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 connectDB();
+startRefillCheckJob();
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }));
 
@@ -26,6 +29,7 @@ app.use('/api/inventory', inventoryRoutes);
 app.use('/api/reservations', reservationRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/chat', chatRoutes);
+app.use('/api/reminders', reminderRoutes);
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
