@@ -16,7 +16,9 @@ async function createReminder(req, res) {
       lastRefillDate: new Date()
     });
 
-    res.status(201).json(reminder);
+    // Re-fetch with populate so Android gets medicineId as a full object
+    const populated = await Reminder.findById(reminder._id).populate('medicineId');
+    res.status(201).json(populated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -48,7 +50,10 @@ async function updateReminder(req, res) {
     if (isActive !== undefined) reminder.isActive = isActive;
 
     await reminder.save();
-    res.json(reminder);
+
+    // Re-fetch with populate so Android gets medicineId as a full object
+    const populated = await Reminder.findById(reminder._id).populate('medicineId');
+    res.json(populated);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -69,8 +74,6 @@ async function deleteReminder(req, res) {
   }
 }
 
-// Called when user makes a new reservation for a medicine they have a reminder for —
-// resets the refill clock. Call this from reservationController after creating a reservation.
 async function markRefilled(userId, medicineId) {
   await Reminder.updateOne(
     { userId, medicineId, isActive: true },
