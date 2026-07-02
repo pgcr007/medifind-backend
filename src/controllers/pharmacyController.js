@@ -4,13 +4,14 @@ const Inventory = require('../models/Inventory');
 // Register a new pharmacy (by a pharmacy-role user)
 async function createPharmacy(req, res) {
   try {
-    const { name, address, latitude, longitude } = req.body;
+    const { name, address, latitude, longitude, is24Hours } = req.body;
     const pharmacy = await Pharmacy.create({
       ownerUserId: req.user.id,
       name,
       address,
       latitude,
-      longitude
+      longitude,
+      is24Hours: is24Hours ?? false
     });
     res.status(201).json(pharmacy);
   } catch (err) {
@@ -29,11 +30,35 @@ async function getPharmacyById(req, res) {
   }
 }
 
-// GET /pharmacies/nearby?lat=&lng=&medicineId=
+// PUT /pharmacies/:id
+async function updatePharmacy(req, res) {
+  try {
+    const pharmacy = await Pharmacy.findById(req.params.id);
+    if (!pharmacy) return res.status(404).json({ error: 'Pharmacy not found' });
+
+    if (pharmacy.ownerUserId.toString() !== req.user.id) {
+      return res.status(403).json({ error: 'Not authorized to update this pharmacy' });
+    }
+
+    const { name, address, latitude, longitude, is24Hours } = req.body;
+    if (name !== undefined) pharmacy.name = name;
+    if (address !== undefined) pharmacy.address = address;
+    if (latitude !== undefined) pharmacy.latitude = latitude;
+    if (longitude !== undefined) pharmacy.longitude = longitude;
+    if (is24Hours !== undefined) pharmacy.is24Hours = is24Hours;
+
+    await pharmacy.save();
+    res.json(pharmacy);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+// GET /pharmacies/nearby?lat=&lng=&medicineId=&emergencyOnly=
 // Simple MVP version: fetch all verified pharmacies, calculate distance in JS, filter by stock if medicineId given
 async function getNearbyPharmacies(req, res) {
   try {
-    const { lat, lng, medicineId } = req.query;
+    const { lat, lng, medicineId, emergencyOnly } = req.query;
     if (!lat || !lng) {
       return res.status(400).json({ error: 'lat and lng are required' });
     }
@@ -67,6 +92,10 @@ async function getNearbyPharmacies(req, res) {
         }));
     }
 
+    if (emergencyOnly === 'true') {
+      results = results.filter(p => p.is24Hours === true);
+    }
+
     results.sort((a, b) => a.distanceKm - b.distanceKm);
     res.json(results);
   } catch (err) {
@@ -74,4 +103,4 @@ async function getNearbyPharmacies(req, res) {
   }
 }
 
-module.exports = { createPharmacy, getPharmacyById, getNearbyPharmacies };
+module.exports = { createPharmacy, getPharmacyById, updatePharmacy, getNearbyPharmacies };
