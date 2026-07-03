@@ -103,4 +103,15 @@ async function getNearbyPharmacies(req, res) {
   }
 }
 
-module.exports = { createPharmacy, getPharmacyById, updatePharmacy, getNearbyPharmacies };
+async function getMyPharmacy(req, res) {
+  try {
+    const pharmacy = await Pharmacy.findOne({ ownerUserId: req.user.id });
+    if (!pharmacy) return res.status(404).json({ error: 'No pharmacy found for this account' });
+    res.json(pharmacy);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+
+module.exports = { createPharmacy, getPharmacyById, updatePharmacy, getNearbyPharmacies, getMyPharmacy };
