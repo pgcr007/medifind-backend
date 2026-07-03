@@ -35,4 +35,25 @@ async function getInventoryByPharmacy(req, res) {
   }
 }
 
-module.exports = { updateInventory, getInventoryByPharmacy };
+async function deleteInventoryItem(req, res) {
+  try {
+    const { pharmacyId, medicineId } = req.params;
+
+    const pharmacy = await Pharmacy.findById(pharmacyId);
+    if (!pharmacy) return res.status(404).json({ error: 'Pharmacy not found' });
+
+    if (pharmacy.ownerUserId.toString() !== req.user.id) {
+      return res.status(403).json({ error: 'You do not own this pharmacy' });
+    }
+
+    const deleted = await Inventory.findOneAndDelete({ pharmacyId, medicineId });
+    if (!deleted) return res.status(404).json({ error: 'Inventory entry not found' });
+
+    res.json({ message: 'Inventory entry removed', deletedId: deleted._id });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+
+module.exports = { updateInventory, getInventoryByPharmacy, deleteInventoryItem };
