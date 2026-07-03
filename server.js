@@ -33,6 +33,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/reminders', reminderRoutes);
 app.use('/api/prescriptions', prescriptionRoutes);
+app.use('/api/admin', require('./routes/adminRoutes'));
 
 
 const PORT = process.env.PORT || 5000;

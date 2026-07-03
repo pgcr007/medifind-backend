@@ -50,6 +50,10 @@ async function login(req, res) {
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
+    if (user.isActive === false) {
+      return res.status(403).json({ error: 'This account has been disabled.' });
+    }
+
     const token = jwt.sign(
       { id: user._id, role: user.role },
       process.env.JWT_SECRET,
