@@ -2,6 +2,9 @@ const Reservation = require('../models/Reservation');
 const Inventory = require('../models/Inventory');
 const { markRefilled } = require('./reminderController');
 const Pharmacy = require('../models/Pharmacy');
+const User = require('../models/User');
+const Medicine = require('../models/Medicine');
+const { sendPushNotification } = require('../config/firebase');
 
 async function createReservation(req, res) {
   try {
@@ -104,6 +107,36 @@ async function updateReservationStatus(req, res) {
     const updated = await Reservation.findById(id)
       .populate('userId', 'name email')
       .populate('medicineId');
+
+    // Notify the patient of confirmed/rejected outcomes. Pending/cancelled
+    // (cancelled is patient-initiated in this flow) don't need a push.
+    if (status === 'confirmed' || status === 'rejected') {
+      try {
+        const patient = await User.findById(reservation.userId);
+        const medicine = await Medicine.findById(reservation.medicineId);
+        const medicineName = medicine ? medicine.name : 'Your medicine';
+
+        if (patient?.fcmToken) {
+          const title =
+            status === 'confirmed'
+              ? 'Reservation Confirmed!'
+              : 'Reservation Update';
+          const body =
+            status === 'confirmed'
+              ? `${medicineName} is ready — pick it up at ${pharmacy.name}.`
+              : `Your reservation for ${medicineName} at ${pharmacy.name} was rejected.`;
+
+          await sendPushNotification(patient.fcmToken, title, body, {
+            type: 'reservation_status',
+            reservationId: reservation._id.toString(),
+            status
+          });
+        }
+      } catch (notifyErr) {
+        // Never fail the status update because of a notification hiccup
+        console.error('Reservation push notification failed:', notifyErr.message);
+      }
+    }
 
     res.json(updated);
   } catch (err) {
