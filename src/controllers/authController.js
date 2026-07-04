@@ -76,4 +76,43 @@ async function updateFcmToken(req, res) {
   }
 }
 
-module.exports = { register, login, updateFcmToken };
+async function getProfile(req, res) {
+  try {
+    const user = await User.findById(req.user.id).select('-passwordHash -fcmToken');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+async function updateProfile(req, res) {
+  try {
+    const { name, phone, address, dob, profilePicture } = req.body;
+
+    // Only touch fields that were actually sent, so a partial update
+    // (e.g. just the picture) doesn't null out the others.
+    const updates = {};
+    if (name !== undefined) updates.name = name;
+    if (phone !== undefined) updates.phone = phone;
+    if (address !== undefined) updates.address = address;
+    if (dob !== undefined) updates.dob = dob;
+    if (profilePicture !== undefined) updates.profilePicture = profilePicture;
+
+    // Rough safety cap on the incoming base64 string so a full-resolution
+    // photo can't slip through and eat into the Atlas free-tier storage cap.
+    if (profilePicture && profilePicture.length > 300_000) {
+      return res.status(413).json({ error: 'Profile picture is too large. Please use a smaller image.' });
+    }
+
+    const user = await User.findByIdAndUpdate(req.user.id, updates, { new: true })
+      .select('-passwordHash -fcmToken');
+
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
+module.exports = { register, login, updateFcmToken, getProfile, updateProfile };
