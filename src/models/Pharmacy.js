@@ -7,7 +7,9 @@ const pharmacySchema = new mongoose.Schema({
   latitude: { type: Number, required: true },
   longitude: { type: Number, required: true },
   verified: { type: Boolean, default: false },
-  is24Hours: { type: Boolean, default: false }
+  is24Hours: { type: Boolean, default: false },
+  averageRating: { type: Number, default: 0 },
+  reviewCount: { type: Number, default: 0 }
 }, { timestamps: true });
 
 module.exports = mongoose.model('Pharmacy', pharmacySchema);

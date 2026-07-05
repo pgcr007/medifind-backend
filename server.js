@@ -13,6 +13,7 @@ const chatRoutes = require('./src/routes/chatRoutes');
 const reminderRoutes = require('./src/routes/reminderRoutes');
 const { startRefillCheckJob } = require('./src/jobs/refillCheckJob');
 const prescriptionRoutes = require('./src/routes/prescriptionRoutes');
+const reviewRoutes = require('./src/routes/reviewRoutes');
 
 
 const app = express();
@@ -33,6 +34,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/reminders', reminderRoutes);
 app.use('/api/prescriptions', prescriptionRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 
 const PORT = process.env.PORT || 5000;
