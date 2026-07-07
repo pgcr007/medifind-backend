@@ -4,6 +4,7 @@ const { authenticate, authorize } = require('../middleware/auth');
 const {
   listUsers,
   updateUserStatus,
+  updateUserRole,
   listPharmacies,
   verifyPharmacy,
   listMedicines,
@@ -16,6 +17,7 @@ router.use(authenticate, authorize('admin'));
 
 router.get('/users', listUsers);
 router.put('/users/:id/status', updateUserStatus);
+router.put('/users/:id/role', updateUserRole);
 
 router.get('/pharmacies', listPharmacies);
 router.put('/pharmacies/:id/verify', verifyPharmacy);

@@ -34,6 +34,42 @@ async function updateUserStatus(req, res) {
   }
 }
 
+// SECURITY: this is the ONLY way a user should ever be able to become an
+// admin or pharmacy owner after signup — gated by authorize('admin') in
+// adminRoutes.js. Pairs with the register() fix in authController.js, which
+// no longer trusts a client-supplied 'admin' role at signup time.
+async function updateUserRole(req, res) {
+  try {
+    const { role } = req.body;
+    const allowedRoles = ['user', 'pharmacy', 'admin'];
+    if (!allowedRoles.includes(role)) {
+      return res.status(400).json({ error: `role must be one of: ${allowedRoles.join(', ')}` });
+    }
+
+    // Prevent an admin from accidentally locking themselves out by
+    // demoting the only remaining admin account.
+    if (role !== 'admin') {
+      const target = await User.findById(req.params.id);
+      if (target && target.role === 'admin') {
+        const adminCount = await User.countDocuments({ role: 'admin' });
+        if (adminCount <= 1) {
+          return res.status(409).json({ error: 'Cannot demote the last remaining admin account' });
+        }
+      }
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.params.id,
+      { role },
+      { new: true }
+    ).select('-passwordHash');
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json(user);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+}
+
 // --- Pharmacies ---
 async function listPharmacies(req, res) {
   try {
@@ -153,6 +189,7 @@ async function getStats(req, res) {
 module.exports = {
   listUsers,
   updateUserStatus,
+  updateUserRole,
   listPharmacies,
   verifyPharmacy,
   listMedicines,

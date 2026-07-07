@@ -9,17 +9,31 @@ async function register(req, res) {
       return res.status(400).json({ error: 'name, email, and password are required' });
     }
 
+    // SECURITY: reject non-string values outright. Without this, a body like
+    // { "email": { "$gt": "" }, "password": "x" } would be passed straight
+    // into a Mongoose query as a query operator instead of a literal value.
+    if (typeof email !== 'string' || typeof password !== 'string' || typeof name !== 'string') {
+      return res.status(400).json({ error: 'name, email, and password must be strings' });
+    }
+
     const existing = await User.findOne({ email });
     if (existing) {
       return res.status(409).json({ error: 'Email already registered' });
     }
+
+    // SECURITY: never trust a client-supplied 'admin' role here. Self-registration
+    // may legitimately request 'pharmacy' (that's how pharmacy owners sign up),
+    // but 'admin' can only be granted by an existing admin via
+    // PUT /api/admin/users/:id/role — anything else falls back to 'user'.
+    const allowedSelfSignupRoles = ['user', 'pharmacy'];
+    const safeRole = allowedSelfSignupRoles.includes(role) ? role : 'user';
 
     const passwordHash = await bcrypt.hash(password, 10);
     const user = await User.create({
       name,
       email,
       passwordHash,
-      role: role || 'user'
+      role: safeRole
     });
 
     res.status(201).json({
@@ -38,6 +52,12 @@ async function login(req, res) {
     const { email, password } = req.body;
     if (!email || !password) {
       return res.status(400).json({ error: 'email and password are required' });
+    }
+
+    // SECURITY: same guard as register — reject non-string email/password
+    // before they can reach a Mongoose query as an operator object.
+    if (typeof email !== 'string' || typeof password !== 'string') {
+      return res.status(400).json({ error: 'email and password must be strings' });
     }
 
     const user = await User.findOne({ email });
