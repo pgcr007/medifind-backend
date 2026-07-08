@@ -4,7 +4,8 @@ const medicineSchema = new mongoose.Schema({
   name: { type: String, required: true },
   genericName: { type: String },
   category: { type: String },
-  alternatives: [{ type: String }] // names of other medicines with the same generic composition
+  barcode: { type: String }, // optional — existing medicines without one are unaffected
+  alternatives: [{ type: String }]
 }, { timestamps: true });
 
 module.exports = mongoose.model('Medicine', medicineSchema);
