@@ -22,6 +22,44 @@ and how to use the app. You are NOT a doctor. For any specific medical advice, d
 diagnosis questions, always tell the user to consult a licensed doctor or pharmacist. Keep answers
 concise and easy to understand for a general audience.`;
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function isRetryable503(err) {
+  return err.message && err.message.includes('503');
+}
+
+// Tries the primary model with retries; if it's still failing after that,
+// falls back to a secondary model once. Throws if everything fails.
+async function generateWithFallback(prompt) {
+  const primaryModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
+  const fallbackModel = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+
+  const maxRetries = 3;
+  let lastError;
+
+  for (let attempt = 0; attempt < maxRetries; attempt++) {
+    try {
+      return await primaryModel.generateContent(prompt);
+    } catch (err) {
+      lastError = err;
+      if (!isRetryable503(err)) throw err; // don't retry non-503 errors
+      const delayMs = 500 * Math.pow(2, attempt); // 500ms, 1s, 2s
+      console.log(`Gemini 503, retrying in ${delayMs}ms (attempt ${attempt + 1}/${maxRetries})`);
+      await sleep(delayMs);
+    }
+  }
+
+  // Primary model exhausted its retries — try the fallback model once.
+  try {
+    console.log('Primary model still unavailable, trying fallback model');
+    return await fallbackModel.generateContent(prompt);
+  } catch (err) {
+    throw lastError; // report the original error, it's more informative
+  }
+}
+
 function distanceKm(lat1, lon1, lat2, lon2) {
   const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
@@ -39,10 +77,8 @@ async function chat(req, res) {
       return res.status(400).json({ error: 'message is required' });
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash-lite' });
-
     // Step 1: classify intent
-    const intentResult = await model.generateContent(INTENT_PROMPT + message);
+    const intentResult = await generateWithFallback(INTENT_PROMPT + message);
     let intentText = intentResult.response.text().trim();
     intentText = intentText.replace(/```json|```/g, '').trim();
 
@@ -90,7 +126,7 @@ async function chat(req, res) {
 
       const summaryPrompt = `${SYSTEM_CONTEXT}\n\nThe user asked: "${message}"\nHere are the real search results found: ${JSON.stringify(resultsSummary)}\nWrite a brief, friendly reply (2-3 sentences) summarizing where they can find this medicine, mentioning the closest or first result by name. Do not invent any details not present in the data.`;
 
-      const replyResult = await model.generateContent(summaryPrompt);
+      const replyResult = await generateWithFallback(summaryPrompt);
       const reply = replyResult.response.text();
 
       return res.json({
@@ -104,12 +140,15 @@ async function chat(req, res) {
     }
 
     // General conversation fallback
-    const generalResult = await model.generateContent(`${SYSTEM_CONTEXT}\n\nUser question: ${message}`);
+    const generalResult = await generateWithFallback(`${SYSTEM_CONTEXT}\n\nUser question: ${message}`);
     const reply = generalResult.response.text();
     res.json({ reply, searchResults: null });
 
   } catch (err) {
     console.error('Gemini error:', err.message);
+    if (isRetryable503(err)) {
+      return res.status(503).json({ error: "The AI assistant is experiencing high demand right now. Please try again in a moment." });
+    }
     res.status(500).json({ error: 'Chatbot is currently unavailable. Please try again later.' });
   }
 }
