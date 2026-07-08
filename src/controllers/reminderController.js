@@ -26,7 +26,7 @@ async function createReminder(req, res) {
 
 async function getMyReminders(req, res) {
   try {
-    const reminders = await Reminder.find({ userId: req.user.id, isActive: true })
+    const reminders = await Reminder.find({ userId: req.user.id })
       .populate('medicineId')
       .sort({ createdAt: -1 });
     res.json(reminders);
