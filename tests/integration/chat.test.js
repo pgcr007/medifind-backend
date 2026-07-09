@@ -46,9 +46,11 @@ describe('POST /api/chat', () => {
 
   it('handles a general question via the fallback path', async () => {
     const token = await createLoggedInUser();
-    mockGenerateContent
-      .mockResolvedValueOnce(geminiTextResponse('{"intent":"general"}'))
-      .mockResolvedValueOnce(geminiTextResponse('You should take medicines with food if they upset your stomach.'));
+    // Intent classification is now local (regex-based), not a Gemini call —
+    // so only ONE Gemini call happens: the general reply itself.
+    mockGenerateContent.mockResolvedValueOnce(
+      geminiTextResponse('You should take medicines with food if they upset your stomach.')
+    );
 
     const res = await request(app)
       .post('/api/chat')
@@ -58,14 +60,12 @@ describe('POST /api/chat', () => {
     expect(res.status).toBe(200);
     expect(res.body.reply).toContain('food');
     expect(res.body.searchResults).toBeNull();
-    expect(mockGenerateContent).toHaveBeenCalledTimes(2); // intent classification + general reply
+    expect(mockGenerateContent).toHaveBeenCalledTimes(1); // general reply only, no local-classification call
   });
 
-  it('falls back to general intent if the classifier returns malformed JSON', async () => {
+  it('classifies as general when the message matches no search-trigger pattern', async () => {
     const token = await createLoggedInUser();
-    mockGenerateContent
-      .mockResolvedValueOnce(geminiTextResponse('not valid json at all'))
-      .mockResolvedValueOnce(geminiTextResponse('Here is a general answer.'));
+    mockGenerateContent.mockResolvedValueOnce(geminiTextResponse('Here is a general answer.'));
 
     const res = await request(app)
       .post('/api/chat')
@@ -74,6 +74,7 @@ describe('POST /api/chat', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.reply).toBe('Here is a general answer.');
+    expect(res.body.searchResults).toBeNull();
   });
 
   it('finds and summarizes real search results for a recognized medicine', async () => {
@@ -86,9 +87,11 @@ describe('POST /api/chat', () => {
     const medicine = await Medicine.create({ name: 'Paracetamol 650mg', genericName: 'Paracetamol' });
     await Inventory.create({ pharmacyId: pharmacy._id, medicineId: medicine._id, stockQty: 20, price: 25 });
 
-    mockGenerateContent
-      .mockResolvedValueOnce(geminiTextResponse('{"intent":"search_medicine","medicineName":"Paracetamol"}'))
-      .mockResolvedValueOnce(geminiTextResponse('You can find Paracetamol at City Pharmacy nearby.'));
+    // "Where can I find paracetamol?" matches the local search-trigger regex,
+    // so the only Gemini call made is the results-summary call.
+    mockGenerateContent.mockResolvedValueOnce(
+      geminiTextResponse('You can find Paracetamol at City Pharmacy nearby.')
+    );
 
     const res = await request(app)
       .post('/api/chat')
@@ -99,13 +102,11 @@ describe('POST /api/chat', () => {
     expect(res.body.searchResults.medicineName).toBe('Paracetamol 650mg');
     expect(res.body.searchResults.pharmacies[0].pharmacyName).toBe('City Pharmacy');
     expect(res.body.reply).toContain('City Pharmacy');
+    expect(mockGenerateContent).toHaveBeenCalledTimes(1);
   });
 
-  it('returns a not-found reply (and skips the summary Gemini call) for an unrecognized medicine', async () => {
+  it('returns a not-found reply (and makes no Gemini call at all) for an unrecognized medicine', async () => {
     const token = await createLoggedInUser();
-    mockGenerateContent.mockResolvedValueOnce(
-      geminiTextResponse('{"intent":"search_medicine","medicineName":"FakeDrugXYZ"}')
-    );
 
     const res = await request(app)
       .post('/api/chat')
@@ -115,7 +116,8 @@ describe('POST /api/chat', () => {
     expect(res.status).toBe(200);
     expect(res.body.searchResults).toBeNull();
     expect(res.body.reply).toContain("couldn't find");
-    expect(mockGenerateContent).toHaveBeenCalledTimes(1); // only the intent call, no summary call
+    // Local classification + a catalog miss short-circuits before any Gemini call.
+    expect(mockGenerateContent).not.toHaveBeenCalled();
   });
 
   it('returns a friendly 500 if Gemini errors out (e.g. the 503 high-demand case)', async () => {
